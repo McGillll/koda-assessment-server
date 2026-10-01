@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Interfaces\Auth\AuthServiceInterface;
-use App\Services\Auth\AuthService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -16,7 +14,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(AuthServiceInterface::class, AuthService::class);
+        $this->app->register(RepositoryProviders::class);
+        $this->app->register(ServiceProviders::class);
     }
 
     /**
@@ -26,6 +25,10 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('auth', function (Request $request) {
             return Limit::perMinute(5)->by($request->ip());
+        });
+
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
     }
 }

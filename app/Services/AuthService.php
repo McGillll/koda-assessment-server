@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Services\Auth;
+namespace App\Services;
 
 use App\Interfaces\Auth\AuthServiceInterface;
+use App\Interfaces\User\UserRepositoryInterface;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -11,13 +12,13 @@ class AuthService implements AuthServiceInterface
 {
     private const TOKEN_ABILITIES = ['auth:user'];
 
+    public function __construct(private UserRepositoryInterface $userRepository)
+    {
+    }
+
     public function register(object $payload)
     {
-        $user = new User();
-        $user->name = $payload->name;
-        $user->email = $payload->email;
-        $user->password = Hash::make($payload->password);
-        $user->save();
+        $user = $this->userRepository->create($payload);
 
         return [
             'user' => $user,
@@ -27,7 +28,7 @@ class AuthService implements AuthServiceInterface
 
     public function login(object $payload)
     {
-        $user = User::where('email', $payload->email)->first();
+        $user = $this->userRepository->findByEmail($payload->email);
 
         if (! $user || ! Hash::check($payload->password, $user->password)) {
             throw ValidationException::withMessages([

@@ -9,7 +9,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
     });
 
-    Route::middleware(['auth:sanctum', 'abilities:auth:user'])->group(function () {
+    Route::middleware(['auth:sanctum', 'abilities:auth:user', 'throttle:api'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
     });

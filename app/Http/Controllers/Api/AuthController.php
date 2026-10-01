@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
-use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\AuthLoginRequest;
+use App\Http\Requests\AuthRegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Interfaces\Auth\AuthServiceInterface;
 
@@ -14,7 +14,7 @@ class AuthController extends Controller
     {
     }
 
-    public function register(RegisterRequest $request)
+    public function register(AuthRegisterRequest $request)
     {
         $payload = (object) $request->validated();
         $authPayload = $this->authService->register($payload);
@@ -29,7 +29,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function login(LoginRequest $request)
+    public function login(AuthLoginRequest $request)
     {
         $payload = (object) $request->validated();
         $authPayload = $this->authService->login($payload);

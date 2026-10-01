@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Enums;
+
+enum ProjectPriority: string
+{
+    case Low = 'low';
+    case Medium = 'medium';
+    case High = 'high';
+
+    public function label()
+    {
+        return match ($this) {
+            self::Low => 'Low',
+            self::Medium => 'Medium',
+            self::High => 'High',
+        };
+    }
+}
