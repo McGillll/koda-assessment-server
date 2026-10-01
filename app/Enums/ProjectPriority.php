@@ -8,6 +8,11 @@ enum ProjectPriority: string
     case Medium = 'medium';
     case High = 'high';
 
+    public static function values()
+    {
+        return array_map(fn ($case) => $case->value, self::cases());
+    }
+
     public function label()
     {
         return match ($this) {

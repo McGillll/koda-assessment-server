@@ -83,13 +83,15 @@ Every response, success or error:
 
 | Field | Required | Rules |
 |---|---|---|
-| `client_name` | yes | string, max 255 |
-| `project_name` | yes | string, max 255 |
+| `client_name` | yes | string, max 255; trimmed, so whitespace-only counts as missing |
+| `project_name` | yes | string, max 255; trimmed, so whitespace-only counts as missing |
 | `description` | no | string, max 5000; omit or `null` to clear |
-| `status` | yes | one of the status values |
-| `priority` | yes | one of the priority values |
-| `start_date` | no | `YYYY-MM-DD` |
-| `due_date` | no | `YYYY-MM-DD`; must be on or after `start_date` |
+| `status` | yes | one of the status values (exact, lowercase) |
+| `priority` | yes | one of the priority values (exact, lowercase) |
+| `start_date` | no | real calendar date, `YYYY-MM-DD` (e.g. `2026-02-30` is rejected) |
+| `due_date` | no | real calendar date, `YYYY-MM-DD`; on or after `start_date` when both are sent (same day allowed) |
+
+Each invalid field returns **one** message. The due-date-vs-start-date check only runs once both dates are individually valid, so a malformed `start_date` never produces a misleading `due_date` error.
 
 ---
 
@@ -202,15 +204,15 @@ Soft delete — the project disappears from every endpoint but stays recoverable
 
 ## Validation errors (422)
 
-`message` is always `"The given data was invalid."`. `data` maps each field to an array of messages:
+`message` is always `"The given data was invalid."`. `data` maps each invalid field to an array holding a single message:
 
 ```json
 {
     "success": false,
     "message": "The given data was invalid.",
     "data": {
-        "client_name": ["The client name field is required."],
-        "project_name": ["The project name field is required."],
+        "client_name": ["Client name is required."],
+        "project_name": ["Project name is required."],
         "status": ["Status must be one of: planning, in_progress, on_hold, completed."],
         "priority": ["Priority must be one of: low, medium, high."],
         "due_date": ["Due date cannot be earlier than the start date."]
@@ -218,7 +220,36 @@ Soft delete — the project disappears from every endpoint but stays recoverable
 }
 ```
 
-Dates not in `YYYY-MM-DD` return: `The start date field must match the format Y-m-d.`
+**Create / update messages**
+
+| Field | Failure | Message |
+|---|---|---|
+| `client_name` | missing / blank | `Client name is required.` |
+| | not a string | `Client name must be text.` |
+| | over 255 chars | `Client name must not exceed 255 characters.` |
+| `project_name` | missing / blank | `Project name is required.` |
+| | not a string | `Project name must be text.` |
+| | over 255 chars | `Project name must not exceed 255 characters.` |
+| `description` | not a string | `Description must be text.` |
+| | over 5000 chars | `Description must not exceed 5000 characters.` |
+| `status` | missing | `Status is required.` |
+| | not an allowed value | `Status must be one of: planning, in_progress, on_hold, completed.` |
+| `priority` | missing | `Priority is required.` |
+| | not an allowed value | `Priority must be one of: low, medium, high.` |
+| `start_date` | bad format / impossible date | `Start date must be a valid date in YYYY-MM-DD format.` |
+| `due_date` | bad format / impossible date | `Due date must be a valid date in YYYY-MM-DD format.` |
+| | before `start_date` | `Due date cannot be earlier than the start date.` |
+
+**List (`GET /projects`) messages**
+
+| Param | Message |
+|---|---|
+| `status` / `priority` | Same allowed-values messages as above |
+| `search` | `Search must be text.` · `Search must not exceed 255 characters.` |
+| `sort_by` | `Sort field must be one of: client_name, project_name, status, priority, start_date, due_date, created_at.` |
+| `sort_dir` | `Sort direction must be asc or desc.` |
+| `page` | `Page must be a whole number of 1 or more.` |
+| `per_page` | `Per page must be a whole number between 1 and 100.` |
 
 ## Error status summary
 

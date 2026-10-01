@@ -233,6 +233,120 @@ class ProjectApiTest extends TestCase
             ->assertJsonPath('data.due_date.0', 'Due date cannot be earlier than the start date.');
     }
 
+    public function test_required_fields_return_readable_messages(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', [])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data.client_name', ['Client name is required.'])
+            ->assertJsonPath('data.project_name', ['Project name is required.'])
+            ->assertJsonPath('data.status', ['Status is required.'])
+            ->assertJsonPath('data.priority', ['Priority is required.']);
+    }
+
+    public function test_whitespace_only_names_are_treated_as_missing(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload(['client_name' => '   ', 'project_name' => "\t "]))
+            ->assertUnprocessable()
+            ->assertJsonPath('data.client_name', ['Client name is required.'])
+            ->assertJsonPath('data.project_name', ['Project name is required.']);
+    }
+
+    public function test_names_are_trimmed_before_saving(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload(['client_name' => '  Acme Corp  ']))
+            ->assertCreated()
+            ->assertJsonPath('data.project.client_name', 'Acme Corp');
+    }
+
+    public function test_fields_reject_wrong_types_and_lengths(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload([
+                'client_name' => ['Acme'],
+                'project_name' => str_repeat('a', 256),
+                'description' => str_repeat('a', 5001),
+                'status' => 1,
+                'priority' => ['high'],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('data.client_name', ['Client name must be text.'])
+            ->assertJsonPath('data.project_name', ['Project name must not exceed 255 characters.'])
+            ->assertJsonPath('data.description', ['Description must not exceed 5000 characters.'])
+            ->assertJsonPath('data.status', ['Status must be one of: planning, in_progress, on_hold, completed.'])
+            ->assertJsonPath('data.priority', ['Priority must be one of: low, medium, high.']);
+    }
+
+    public function test_enum_values_are_case_sensitive(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload(['status' => 'In_Progress', 'priority' => 'HIGH']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status', 'priority'], 'data');
+    }
+
+    public function test_dates_must_be_real_calendar_dates_in_iso_format(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload([
+                'start_date' => '2026-02-30',
+                'due_date' => '15/12/2026',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('data.start_date', ['Start date must be a valid date in YYYY-MM-DD format.'])
+            ->assertJsonPath('data.due_date', ['Due date must be a valid date in YYYY-MM-DD format.']);
+    }
+
+    public function test_invalid_start_date_does_not_produce_a_misleading_due_date_error(): void
+    {
+        $this->authenticate()
+            ->postJson('/api/projects', $this->validPayload([
+                'start_date' => 'not-a-date',
+                'due_date' => '2026-12-15',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['start_date'], 'data')
+            ->assertJsonMissingValidationErrors(['due_date'], 'data');
+    }
+
+    public function test_due_date_may_equal_start_date_or_stand_alone(): void
+    {
+        $client = $this->authenticate();
+
+        $client->postJson('/api/projects', $this->validPayload(['start_date' => '2026-12-15', 'due_date' => '2026-12-15']))
+            ->assertCreated();
+
+        $client->postJson('/api/projects', $this->validPayload(['start_date' => '2026-12-15', 'due_date' => null]))
+            ->assertCreated();
+    }
+
+    public function test_update_rejects_due_date_before_start_date(): void
+    {
+        $project = Project::factory()->create();
+
+        $this->authenticate()
+            ->putJson("/api/projects/{$project->uuid}", $this->validPayload([
+                'start_date' => '2026-12-15',
+                'due_date' => '2026-12-14',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('data.due_date', ['Due date cannot be earlier than the start date.']);
+    }
+
+    public function test_list_query_parameters_return_readable_messages(): void
+    {
+        $this->authenticate()
+            ->getJson('/api/projects?sort_by=password&sort_dir=sideways&per_page=500&page=0')
+            ->assertUnprocessable()
+            ->assertJsonPath('data.sort_by', ['Sort field must be one of: client_name, project_name, status, priority, start_date, due_date, created_at.'])
+            ->assertJsonPath('data.sort_dir', ['Sort direction must be asc or desc.'])
+            ->assertJsonPath('data.per_page', ['Per page must be a whole number between 1 and 100.'])
+            ->assertJsonPath('data.page', ['Page must be a whole number of 1 or more.']);
+    }
+
     public function test_user_can_update_a_project(): void
     {
         $project = Project::factory()->create();
